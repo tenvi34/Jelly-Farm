@@ -7,70 +7,109 @@ public class Jelly : MonoBehaviour
 {
     private SpriteRenderer _spriteRenderer;
     private Animator _animator;
+    private Coroutine _wanderCoroutine;
 
     [Header("Jelly Setting")] 
-    public int move_delay = 6; // 다음 이동까지의 딜레이
-    public int move_time = 3; // 이동 시간
+    [SerializeField] private float moveDelay = 6f; // 다음 이동까지의 딜레이
+    [SerializeField] private float moveTime = 3f; // 이동 시간
+    [SerializeField] private float moveSpeedRange = 0.8f; // 최대 이동 속도
 
-    private float _speedX; // x축 이동 속도
-    private float _speedY; // y축 이동 속도
-    private bool isWandering;
-    private bool isWalking;
-    
+    private Vector2 _moveDirection; // 이동 방향 벡터
+    private bool _isWalking;
+
     private void Awake()
     {
-        // 초기화
+        // 컴포넌트 초기화
         _spriteRenderer = GetComponent<SpriteRenderer>();
         _animator = GetComponent<Animator>();
+    }
 
-        isWandering = false;
-        isWalking = false;
+    private void Start()
+    {
+        // 시작 시 움직임 코루틴 시작
+        StartWandering();
     }
 
     private void FixedUpdate()
     {
-        if (!isWandering)
-            StartCoroutine(Wander());
-        if (isWalking)
+        if (_isWalking)
+        {
             Move();
+        }
     }
 
-    private IEnumerator Wander()
+    private void StartWandering()
     {
-        // Translate로 이동할 시 Object가 텔레포트 하는 것을 방지하기 위해 Time.deltaTime을 곱해줌
-        _speedX = Random.Range(-0.8f, 0.8f) * Time.deltaTime;
-        _speedY = Random.Range(-0.8f, 0.8f) * Time.deltaTime;
+        // 이미 실행 중인 코루틴이 있다면 중지
+        if (_wanderCoroutine != null)
+        {
+            StopCoroutine(_wanderCoroutine);
+        }
 
-        isWandering = true;
+        _wanderCoroutine = StartCoroutine(WanderCoroutine());
+    }
 
-        yield return new WaitForSeconds(move_delay);
+    private IEnumerator WanderCoroutine()
+    {
+        while (true)
+        {
+            // 대기 상태
+            _isWalking = false;
+            _animator.SetBool("isWalk", false);
+            yield return new WaitForSeconds(moveDelay);
 
-        isWalking = true;
-        _animator.SetBool("isWalk", true);	// 이동 애니메이션 실행
+            // 랜덤 방향 설정 (정규화된 방향 벡터)
+            _moveDirection = new Vector2(
+                Random.Range(-moveSpeedRange, moveSpeedRange),
+                Random.Range(-moveSpeedRange, moveSpeedRange)
+            ).normalized * moveSpeedRange;
 
-        yield return new WaitForSeconds(move_time);
-        
-        isWalking = false;
-        _animator.SetBool("isWalk", false); // 이동 애니메이션 종료
+            // 방향에 따라 스프라이트 뒤집기
+            if (_moveDirection.x != 0)
+            {
+                _spriteRenderer.flipX = _moveDirection.x < 0;
+            }
 
-        isWandering = false;
+            // 이동 상태
+            _isWalking = true;
+            _animator.SetBool("isWalk", true);
+            yield return new WaitForSeconds(moveTime);
+        }
     }
 
     private void Move()
     {
-        if (_speedX != 0)
-        {
-            _spriteRenderer.flipX = _speedX < 0; // x축 속도에 따라 Spite 이미지를 뒤집음
-        }
-            
-        transform.Translate(_speedX, _speedY, _speedY);	// 젤리 이동
+        // deltaTime을 여기서 적용하여 프레임 독립적인 이동 구현
+        transform.Translate(_moveDirection * Time.deltaTime);
     }
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
-        if (collision.gameObject.name.Contains("Bottom") || collision.gameObject.name.Contains("Top"))
-            _speedY = -_speedY;
-        else if (collision.gameObject.name.Contains("Left") || collision.gameObject.name.Contains("Right"))
-            _speedX = -_speedX;
+        // 태그를 사용하여 경계 충돌 처리
+        if (collision.CompareTag("Boundary"))
+        {
+            // 경계면의 방향에 따라 반사 방향 계산
+            if (collision.gameObject.name.Contains("Bottom") || collision.gameObject.name.Contains("Top"))
+            {
+                _moveDirection.y = -_moveDirection.y;
+            }
+            else if (collision.gameObject.name.Contains("Left") || collision.gameObject.name.Contains("Right"))
+            {
+                _moveDirection.x = -_moveDirection.x;
+            }
+
+            // 방향 변경 시 스프라이트 업데이트
+            _spriteRenderer.flipX = _moveDirection.x < 0;
+        }
+    }
+
+    // 추가: 게임 오브젝트가 비활성화될 때 코루틴 정리
+    private void OnDisable()
+    {
+        if (_wanderCoroutine != null)
+        {
+            StopCoroutine(_wanderCoroutine);
+            _wanderCoroutine = null;
+        }
     }
 }
