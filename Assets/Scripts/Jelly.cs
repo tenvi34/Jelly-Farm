@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using UnityEngine;
 using Random = UnityEngine.Random;
@@ -63,5 +64,13 @@ public class Jelly : MonoBehaviour
         }
             
         transform.Translate(_speedX, _speedY, _speedY);	// 젤리 이동
+    }
+
+    private void OnTriggerEnter2D(Collider2D collision)
+    {
+        if (collision.gameObject.name.Contains("Bottom") || collision.gameObject.name.Contains("Top"))
+            _speedY = -_speedY;
+        else if (collision.gameObject.name.Contains("Left") || collision.gameObject.name.Contains("Right"))
+            _speedX = -_speedX;
     }
 }
